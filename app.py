@@ -2,819 +2,695 @@ import streamlit as st
 import requests
 import json
 import base64
-from PIL import Image
-import io
 import datetime
-import time
 import pandas as pd
+import numpy as np
+from fpdf import FPDF
+import io
+import time
 
-# Configuración de la página
-st.set_page_config(
-    page_title="EduScan Pro - Evaluador Inteligente",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Configuración
+st.set_page_config(page_title="EduScan Pro", layout="wide")
 
-# CSS Mejorado - Compatible con Modo Oscuro
-st.markdown("""
-<style>
-    /* Estilos generales compatibles con modo oscuro */
-    .main > div {
-        padding: 2rem 1rem;
-    }
-    
-    /* Títulos y headers - VISIBLES EN MODO OSCURO */
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: 700;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-    
-    .section-header {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: var(--text-color) !important;
-        margin: 1.5rem 0 1rem 0;
-        border-bottom: 3px solid var(--border-color);
-        padding-bottom: 0.5rem;
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-    
-    /* Variables CSS para modo claro/oscuro */
-    :root {
-        --text-color: #2d3748;
-        --border-color: #e2e8f0;
-        --primary-color: #667eea;
-        --secondary-color: #764ba2;
-        --card-bg: white;
-        --metric-bg: white;
-    }
-    
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --text-color: #f7fafc;
-            --border-color: #4a5568;
-            --primary-color: #7f9cf5;
-            --secondary-color: #9f7aea;
-            --card-bg: #2d3748;
-            --metric-bg: #4a5568;
-        }
-    }
-    
-    /* Botones mejorados */
-    .stButton > button {
-        width: 100%;
-        height: 3.5rem;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 1.1rem;
-        transition: all 0.3s ease;
-        border: none;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-    }
-    
-    /* Tarjeta de puntaje premium */
-    .score-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 20px;
-        margin: 1.5rem 0;
-        text-align: center;
-        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-        border: none;
-    }
-    
-    .score-percentage {
-        font-size: 3.5rem;
-        font-weight: 800;
-        margin: 0;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-    }
-    
-    .score-details {
-        display: flex;
-        justify-content: space-around;
-        flex-wrap: wrap;
-        margin-top: 1.5rem;
-    }
-    
-    .score-item {
-        flex: 1;
-        min-width: 120px;
-        margin: 0.5rem;
-    }
-    
-    .score-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        margin: 0;
-    }
-    
-    .score-label {
-        font-size: 0.9rem;
-        opacity: 0.9;
-        margin: 0;
-    }
-    
-    /* Estilos para métricas de información del examen - COMPATIBLES CON MODO OSCURO */
-    .exam-info-container {
-        background: var(--card-bg);
-        padding: 1.5rem;
-        border-radius: 15px;
-        margin: 1rem 0;
-        border: 1px solid var(--border-color);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    
-    .info-metric {
-        background: var(--metric-bg);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        text-align: center;
-        transition: all 0.3s ease;
-    }
-    
-    .info-metric:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-    }
-    
-    .metric-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: var(--text-color);
-        margin: 0.5rem 0;
-    }
-    
-    .metric-label {
-        font-size: 0.9rem;
-        color: #718096;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin: 0;
-    }
-    
-    .metric-icon {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
-        color: var(--text-color);
-    }
-    
-    /* Tarjetas de preguntas mejoradas */
-    .question-card {
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        border: none;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        transition: all 0.3s ease;
-    }
-    
-    .question-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-    }
-    
-    .correct-answer {
-        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-        color: white;
-        border-left: 5px solid #2f855a;
-    }
-    
-    .incorrect-answer {
-        background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
-        color: white;
-        border-left: 5px solid #c53030;
-    }
-    
-    .unanswered-answer {
-        background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
-        color: white;
-        border-left: 5px solid #4a5568;
-    }
-    
-    .question-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-    
-    .question-number {
-        font-size: 1.2rem;
-        font-weight: 700;
-        background: rgba(255,255,255,0.2);
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-    }
-    
-    .question-status {
-        font-size: 1rem;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .question-details {
-        background: rgba(255,255,255,0.1);
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 0.5rem 0;
-    }
-    
-    .question-explanation {
-        font-style: italic;
-        margin-top: 1rem;
-        opacity: 0.9;
-        border-top: 1px solid rgba(255,255,255,0.3);
-        padding-top: 1rem;
-    }
-    
-    /* Sidebar mejorado */
-    .sidebar .sidebar-content {
-        background: var(--card-bg);
-    }
-    
-    /* Badges para estados */
-    .status-badge {
-        padding: 0.3rem 0.8rem;
-        border-radius: 15px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .status-approved {
-        background: #48bb78;
-        color: white;
-    }
-    
-    .status-failed {
-        background: #f56565;
-        color: white;
-    }
-    
-    /* Animaciones */
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .fade-in {
-        animation: fadeIn 0.6s ease-out;
-    }
-    
-    /* Grade badge mejorado */
-    .grade-badge {
-        text-align: center;
-        padding: 1rem;
-        border-radius: 15px;
-        color: white;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-    }
-    
-    /* Estilos para exportación */
-    .export-section {
-        background: linear-gradient(135deg, #f0fff4 0%, #e6fffa 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 2px dashed #48bb78;
-        margin: 1rem 0;
-    }
-    
-    /* Asegurar que los textos del sidebar sean visibles */
-    .sidebar .stTextInput label,
-    .sidebar .stSelectbox label,
-    .sidebar h2,
-    .sidebar h4 {
-        color: var(--text-color) !important;
-    }
-    
-    /* Mejorar contraste en modo oscuro */
-    .stAlert {
-        background-color: var(--card-bg) !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-class ExamScanner:
+class BatchExamScanner:
     def __init__(self):
         self.n8n_webhook_url = "https://kitsu-test.app.n8n.cloud/webhook-test/upload-exam"
     
-    def process_image(self, image_file, student_id, exam_type):
-        """Envía la imagen a n8n para procesamiento"""
+    def process_batch(self, files_data, batch_name, exam_type):
+        """Envía todo el lote en un solo request"""
         try:
-            # Convertir imagen a base64
-            image_bytes = image_file.getvalue()
-            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-            
-            # Preparar datos para n8n
-            payload = {
-                "image_data": f"data:image/png;base64,{image_b64}",
-                "student_id": student_id,
+            # Preparar datos del lote
+            batch_payload = {
+                "batch_name": batch_name,
                 "exam_type": exam_type,
-                "upload_timestamp": datetime.datetime.now().isoformat()
+                "timestamp": datetime.datetime.now().isoformat(),
+                "total_exams": len(files_data),
+                "exams": []
             }
             
-            # Enviar a n8n con timeout más largo
+            # Convertir todas las imágenes a base64
+            for file_data in files_data:
+                image_bytes = file_data['file'].getvalue()
+                image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+                
+                batch_payload["exams"].append({
+                    "student_id": file_data['student_id'],
+                    "filename": file_data['filename'],
+                    "image_data": f"data:image/png;base64,{image_b64}"
+                })
+            
             headers = {'Content-Type': 'application/json'}
+            
+            # Un solo request con timeout largo
             response = requests.post(
                 self.n8n_webhook_url, 
-                json=payload, 
+                json=batch_payload, 
                 headers=headers,
-                timeout=120
+                timeout=300  # 5 minutos para procesar todo el lote
             )
             
             if response.status_code == 200:
-                return response.json()
+                return {
+                    'success': True,
+                    'data': response.json(),
+                    'batch_size': len(files_data)
+                }
             else:
-                st.error(f"Error en el servidor: {response.status_code}")
-                return None
+                return {
+                    'success': False,
+                    'error': f"Error HTTP {response.status_code}",
+                    'status_code': response.status_code
+                }
                 
-        except requests.exceptions.Timeout:
-            st.error("⏰ El procesamiento está tomando más tiempo de lo esperado. Intenta nuevamente.")
-            return None
         except Exception as e:
-            st.error(f"Error al procesar la imagen: {str(e)}")
-            return None
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
-def get_grade_color(grade):
-    """Devuelve el color según la calificación"""
-    grade_colors = {
-        'A': '#48bb78', 'B': '#68d391', 'C': '#ecc94b', 
-        'D': '#ed8936', 'F': '#f56565', 'N/A': '#a0aec0'
-    }
-    return grade_colors.get(grade, '#a0aec0')
-
-def translate_question_type(question_type):
-    """Traduce el tipo de pregunta al español"""
-    translations = {
-        'multiple_choice': 'Opción Múltiple',
-        'true_false': 'Verdadero/Falso',
-        'single_choice': 'Selección Simple',
-        'multiple_choice_single': 'Opción Múltiple (Una respuesta)',
-        'multiple_choice_multiple': 'Opción Múltiple (Múltiples respuestas)'
-    }
-    return translations.get(question_type, question_type.replace('_', ' ').title())
-
-def create_excel_export(evaluation_data):
-    """Crea archivo Excel para exportación"""
-    if not evaluation_data:
-        return None
-    
-    evaluation = evaluation_data.get('evaluation', {})
-    student_info = evaluation_data.get('student_info', {})
-    detailed_results = evaluation_data.get('detailed_results', [])
-    
-    # Crear buffer para Excel
-    excel_buffer = io.BytesIO()
-    
-    with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
-        # Hoja 1: Resumen del Examen
-        summary_data = {
-            'Campo': [
-                'ID Estudiante',
-                'Tipo de Examen', 
-                'Total Preguntas',
-                'Preguntas Correctas',
-                'Preguntas Incorrectas',
-                'Sin Respuesta',
-                'Porcentaje de Acierto',
-                'Calificación',
-                'Estado',
-                'Fecha de Procesamiento'
-            ],
-            'Valor': [
-                student_info.get('student_id', 'N/A'),
-                student_info.get('exam_type', 'N/A'),
-                student_info.get('total_questions', 0),
-                evaluation.get('correct_answers', 0),
-                evaluation.get('incorrect_answers', 0),
-                evaluation.get('unanswered_questions', 0),
-                f"{evaluation.get('score_percentage', 0)}%",
-                evaluation.get('grade', 'N/A'),
-                evaluation.get('passing_status', 'N/A'),
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ]
+class PDFReportGenerator:
+    def __init__(self):
+        self.colors = {
+            'primary': (41, 128, 185),
+            'secondary': (52, 152, 219),
+            'success': (39, 174, 96),
+            'warning': (241, 196, 15),
+            'danger': (231, 76, 60),
+            'dark': (44, 62, 80),
+            'light': (236, 240, 241)
         }
+    
+    def draw_header(self, pdf, title):
+        """Dibuja el encabezado del reporte"""
+        pdf.set_fill_color(*self.colors['primary'])
+        pdf.rect(0, 0, 210, 30, 'F')
         
-        summary_df = pd.DataFrame(summary_data)
-        summary_df.to_excel(writer, sheet_name='Resumen', index=False)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Arial", 'B', 20)
+        pdf.cell(0, 10, title, 0, 1, 'C')
+        pdf.ln(5)
+    
+    def draw_footer(self, pdf):
+        """Dibuja el pie de página"""
+        pdf.set_y(-15)
+        pdf.set_font("Arial", 'I', 8)
+        pdf.set_text_color(128, 128, 128)
+        pdf.cell(0, 10, f"Página {pdf.page_no()} - Generado con EduScan Pro", 0, 0, 'C')
+    
+    def create_metric_box(self, pdf, x, y, width, height, title, value, color):
+        """Crea una caja de métrica con estilo usando métodos estándar de FPDF"""
+        # Dibujar rectángulo de fondo
+        pdf.set_fill_color(*color)
+        pdf.rect(x, y, width, height, 'F')
         
-        # Hoja 2: Preguntas Detalladas
-        if detailed_results:
-            questions_data = []
-            for q in detailed_results:
-                questions_data.append({
-                    'Número de Pregunta': q.get('question_number'),
-                    'Respuesta Seleccionada': q.get('selected_option', 'Sin respuesta'),
-                    'Respuesta Correcta': q.get('correct_option', 'N/A'),
-                    '¿Es Correcta?': 'Sí' if q.get('is_correct') else 'No',
-                    'Tipo de Pregunta': translate_question_type(q.get('question_type', '')),
-                    'Explicación': q.get('explanation', '')
+        # Dibujar borde
+        pdf.set_draw_color(200, 200, 200)
+        pdf.rect(x, y, width, height)
+        
+        # Texto del título
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.set_xy(x + 5, y + 3)
+        pdf.cell(width - 10, 5, title, 0, 1)
+        
+        # Valor
+        pdf.set_font("Arial", 'B', 14)
+        pdf.set_xy(x + 5, y + 9)
+        pdf.cell(width - 10, 8, str(value), 0, 1)
+    
+    def create_student_metric_box(self, pdf, x, y, width, height, title, student_name, score, color):
+        """Crea una caja de métrica especial para estudiantes"""
+        # Dibujar rectángulo de fondo
+        pdf.set_fill_color(*color)
+        pdf.rect(x, y, width, height, 'F')
+        
+        # Dibujar borde
+        pdf.set_draw_color(200, 200, 200)
+        pdf.rect(x, y, width, height)
+        
+        # Texto del título
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.set_xy(x + 5, y + 3)
+        pdf.cell(width - 10, 5, title, 0, 1)
+        
+        # Puntaje
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_xy(x + 5, y + 9)
+        pdf.cell(width - 10, 6, f"{score}%", 0, 1)
+        
+        # Nombre del estudiante
+        pdf.set_font("Arial", '', 8)
+        pdf.set_xy(x + 5, y + 16)
+        # Acortar nombre si es muy largo
+        display_name = student_name[:20] + "..." if len(student_name) > 20 else student_name
+        pdf.cell(width - 10, 5, display_name, 0, 1)
+    
+    def generate_pdf_report(self, results_data, batch_name, exam_type):
+        """Genera un reporte PDF profesional con los resultados"""
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+        
+        # Encabezado
+        self.draw_header(pdf, "REPORTE DE EVALUACIÓN - EDUSCAN PRO")
+        
+        # Información del lote - CORREGIDO: Más espacio después del header
+        pdf.ln(15)  # Aumenté el espacio aquí
+        
+        pdf.set_text_color(0, 0, 0)  # Texto negro
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "INFORMACIÓN DEL LOTE", 0, 1)
+        
+        pdf.set_font("Arial", '', 10)
+        pdf.cell(0, 6, f"Nombre del lote: {batch_name}", 0, 1)
+        pdf.cell(0, 6, f"Tipo de examen: {exam_type}", 0, 1)
+        pdf.cell(0, 6, f"Fecha de generación: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", 0, 1)
+        pdf.ln(10)
+        
+        batch_processing = results_data.get('batch_processing', {})
+        results = results_data.get('results', [])
+        successful_results = [r for r in results if r.get('success')]
+        
+        if successful_results:
+            # Calcular estadísticas
+            scores = []
+            approved = 0
+            failed = 0
+            student_scores = []
+            
+            for result in successful_results:
+                data = result.get('data', {})
+                evaluation = data.get('evaluation', {})
+                score_percentage = evaluation.get('score_percentage', 0)
+                scores.append(score_percentage)
+                
+                student_name = data.get('student_info', {}).get('student_name', result.get('student_id', 'Desconocido'))
+                student_scores.append({
+                    'name': student_name,
+                    'score': score_percentage,
+                    'status': evaluation.get('passing_status', 'REPROBADO')
                 })
+                
+                if evaluation.get('passing_status') == 'APROBADO':
+                    approved += 1
+                else:
+                    failed += 1
             
-            questions_df = pd.DataFrame(questions_data)
-            questions_df.to_excel(writer, sheet_name='Preguntas Detalladas', index=False)
-        
-        # Hoja 3: Estadísticas
-        stats_data = {
-            'Métrica': [
-                'Porcentaje de Acierto',
-                'Eficiencia',
-                'Tasa de Error', 
-                'Tasa de Omisión',
-                'Nivel de Dificultad'
-            ],
-            'Valor': [
-                f"{evaluation.get('score_percentage', 0)}%",
-                f"{(evaluation.get('correct_answers', 0) / student_info.get('total_questions', 1)) * 100:.1f}%",
-                f"{(evaluation.get('incorrect_answers', 0) / student_info.get('total_questions', 1)) * 100:.1f}%",
-                f"{(evaluation.get('unanswered_questions', 0) / student_info.get('total_questions', 1)) * 100:.1f}%",
-                evaluation.get('grade', 'N/A')
+            # Estadísticas
+            avg_score = sum(scores) / len(scores) if scores else 0
+            max_score = max(scores) if scores else 0
+            min_score = min(scores) if scores else 0
+            
+            # Encontrar estudiantes con máxima y mínima nota
+            max_students = [s for s in student_scores if s['score'] == max_score]
+            min_students = [s for s in student_scores if s['score'] == min_score]
+            
+            # Métricas principales
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(0, 10, "ESTADÍSTICAS GENERALES", 0, 1)
+            pdf.ln(5)
+            
+            # Crear cuadrícula de métricas mejorada
+            metrics_row1 = [
+                {"title": "PROMEDIO", "value": f"{avg_score:.1f}%", "color": self.colors['primary']},
+                {"title": "APROBADOS", "value": f"{approved}", "color": self.colors['success']},
+                {"title": "DESAPROBADOS", "value": f"{failed}", "color": self.colors['danger']}
             ]
+            
+            # Dibujar primera fila de métricas
+            for i, metric in enumerate(metrics_row1):
+                x = 10 + i * 63
+                y = pdf.get_y()
+                self.create_metric_box(pdf, x, y, 60, 20, metric["title"], metric["value"], metric["color"])
+            
+            pdf.ln(25)
+            
+            # Segunda fila con información de estudiantes destacados
+            current_y = pdf.get_y()
+            
+            if max_students:
+                max_student = max_students[0]
+                x_max = 10
+                self.create_student_metric_box(
+                    pdf, x_max, current_y, 90, 25, 
+                    "MEJOR NOTA", 
+                    max_student['name'], 
+                    max_score, 
+                    self.colors['warning']
+                )
+            
+            if min_students:
+                min_student = min_students[0]
+                x_min = 110
+                self.create_student_metric_box(
+                    pdf, x_min, current_y, 90, 25, 
+                    "NOTA MÁS BAJA", 
+                    min_student['name'], 
+                    min_score, 
+                    self.colors['secondary']
+                )
+            
+            pdf.ln(35)
+            
+            # Distribución de notas - CORREGIDO: Texto negro en encabezados
+            pdf.set_text_color(0, 0, 0)  # ✅ TEXTO NEGRO
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(0, 10, "DISTRIBUCIÓN DE NOTAS", 0, 1)
+            pdf.ln(5)
+            
+            # Crear tabla de distribución CORREGIDA
+            header_fill = self.colors['light']
+            pdf.set_fill_color(*header_fill)
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO para encabezados
+            
+            # Encabezado de tabla
+            pdf.cell(70, 8, "Rango de Notas", 1, 0, 'C', True)
+            pdf.cell(40, 8, "Cantidad", 1, 0, 'C', True)
+            pdf.cell(40, 8, "Porcentaje", 1, 1, 'C', True)
+            
+            ranges = [
+                ("90-100% (Excelente)", 90, 100),
+                ("80-89% (Muy Bueno)", 80, 89),
+                ("70-79% (Bueno)", 70, 79),
+                ("60-69% (Suficiente)", 60, 69),
+                ("0-59% (Insuficiente)", 0, 59)
+            ]
+            
+            pdf.set_font("Arial", '', 9)
+            pdf.set_fill_color(255, 255, 255)  # Fondo blanco para las filas
+            pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO para datos
+            
+            for i, (range_name, min_val, max_val) in enumerate(ranges):
+                count = len([s for s in scores if min_val <= s <= max_val])
+                percentage = (count / len(scores)) * 100 if scores else 0
+                
+                # Alternar colores de fondo para mejor legibilidad
+                fill = i % 2 == 0
+                if fill:
+                    pdf.set_fill_color(245, 245, 245)  # Gris muy claro
+                else:
+                    pdf.set_fill_color(255, 255, 255)  # Blanco
+                
+                pdf.cell(70, 7, range_name, 1, 0, 'L', fill)
+                pdf.cell(40, 7, str(count), 1, 0, 'C', fill)
+                pdf.cell(40, 7, f"{percentage:.1f}%", 1, 1, 'C', fill)
+            
+            pdf.ln(10)
+            
+            # Ranking de estudiantes - CORREGIDO: Texto negro en encabezados
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(0, 10, "RANKING DE ESTUDIANTES", 0, 1)
+            pdf.ln(5)
+            
+            # Ordenar estudiantes por puntaje
+            student_scores.sort(key=lambda x: x['score'], reverse=True)
+            
+            col_widths = [80, 30, 30, 30]
+            
+            # Encabezado de tabla - CORREGIDO: Texto negro
+            pdf.set_fill_color(*self.colors['light'])
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO para encabezados
+            
+            pdf.cell(col_widths[0], 8, "Estudiante", 1, 0, 'C', True)
+            pdf.cell(col_widths[1], 8, "Nota", 1, 0, 'C', True)
+            pdf.cell(col_widths[2], 8, "Estado", 1, 0, 'C', True)
+            pdf.cell(col_widths[3], 8, "Correctas", 1, 1, 'C', True)
+            
+            pdf.set_font("Arial", '', 9)
+            pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO para datos de estudiantes
+            
+            for i, student in enumerate(student_scores):
+                # Buscar datos completos del estudiante
+                student_data = next((r for r in successful_results 
+                                  if r.get('data', {}).get('student_info', {}).get('student_name') == student['name']), None)
+                
+                correct_answers = "N/A"
+                if student_data:
+                    correct_answers = student_data.get('data', {}).get('evaluation', {}).get('correct_answers', 'N/A')
+                
+                # Color según estado - PERO texto negro para nombres y datos
+                if student['status'] == 'APROBADO':
+                    status_color = (39, 174, 96)  # Verde para estado
+                else:
+                    status_color = (231, 76, 60)  # Rojo para estado
+                
+                # Fondo alternado para mejor legibilidad
+                fill = i % 2 == 0
+                if fill:
+                    pdf.set_fill_color(245, 245, 245)  # Gris muy claro
+                else:
+                    pdf.set_fill_color(255, 255, 255)  # Blanco
+                
+                # Resaltar estudiantes con máxima y mínima nota
+                if student['score'] == max_score:
+                    pdf.set_fill_color(255, 255, 150)  # Amarillo claro para mejor nota
+                elif student['score'] == min_score:
+                    pdf.set_fill_color(255, 200, 200)  # Rojo claro para peor nota
+                
+                # Nombre del estudiante - TEXTO NEGRO
+                pdf.set_text_color(0, 0, 0)
+                pdf.cell(col_widths[0], 7, student['name'][:25], 1, 0, 'L', True)
+                
+                # Nota - TEXTO NEGRO
+                pdf.cell(col_widths[1], 7, f"{student['score']}%", 1, 0, 'C', True)
+                
+                # Estado - Color según aprobado/reprobado
+                pdf.set_text_color(*status_color)
+                pdf.cell(col_widths[2], 7, student['status'], 1, 0, 'C', True)
+                
+                # Correctas - TEXTO NEGRO
+                pdf.set_text_color(0, 0, 0)
+                pdf.cell(col_widths[3], 7, str(correct_answers), 1, 1, 'C', True)
+            
+            pdf.ln(15)
+            
+            # Resultados detallados por estudiante - CORREGIDO: Texto negro
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(0, 10, "RESULTADOS DETALLADOS POR ESTUDIANTE", 0, 1)
+            pdf.ln(5)
+            
+            for i, result in enumerate(successful_results):
+                if i > 0:
+                    pdf.add_page()
+                    self.draw_header(pdf, "REPORTE DE EVALUACIÓN - EDUSCAN PRO")
+                    pdf.ln(10)
+                
+                data = result.get('data', {})
+                student_info = data.get('student_info', {})
+                evaluation = data.get('evaluation', {})
+                detailed_results = data.get('detailed_results', [])
+                
+                student_name = student_info.get('student_name', result.get('student_id', 'Desconocido'))
+                student_score = evaluation.get('score_percentage', 0)
+                
+                # Información del estudiante - CORREGIDO: Texto negro
+                pdf.set_fill_color(*self.colors['light'])
+                pdf.set_font("Arial", 'B', 12)
+                pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO
+                pdf.cell(0, 8, f"ESTUDIANTE: {student_name}", 1, 1, 'L', True)
+                
+                pdf.set_font("Arial", '', 10)
+                pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO
+                pdf.cell(0, 6, f"Tipo de examen: {student_info.get('exam_type', 'N/A')}", 0, 1)
+                pdf.cell(0, 6, f"Total de preguntas: {student_info.get('total_questions', 0)}", 0, 1)
+                
+                # Resumen de evaluación - CORREGIDO: Texto negro en encabezados
+                col_width = 47.5
+                pdf.ln(5)
+                
+                # Encabezado de resumen - TEXTO NEGRO
+                pdf.set_fill_color(*self.colors['light'])
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO para encabezados
+                pdf.cell(col_width, 8, "Correctas:", 1, 0, 'C', True)
+                pdf.cell(col_width, 8, "Incorrectas:", 1, 0, 'C', True)
+                pdf.cell(col_width, 8, "Puntaje:", 1, 0, 'C', True)
+                pdf.cell(col_width, 8, "Estado:", 1, 1, 'C', True)
+                
+                # Datos del resumen - TEXTO NEGRO para valores
+                pdf.set_font("Arial", '', 10)
+                pdf.set_fill_color(255, 255, 255)  # Fondo blanco
+                
+                # Correctas - TEXTO NEGRO
+                pdf.set_text_color(0, 0, 0)
+                pdf.cell(col_width, 8, str(evaluation.get('correct_answers', 0)), 1, 0, 'C', True)
+                
+                # Incorrectas - TEXTO NEGRO
+                pdf.cell(col_width, 8, str(evaluation.get('incorrect_answers', 0)), 1, 0, 'C', True)
+                
+                # Puntaje - TEXTO NEGRO
+                pdf.cell(col_width, 8, f"{student_score}%", 1, 0, 'C', True)
+                
+                # Estado - Color según aprobado/reprobado
+                status_color = (39, 174, 96) if evaluation.get('passing_status') == 'APROBADO' else (231, 76, 60)
+                pdf.set_text_color(*status_color)
+                pdf.cell(col_width, 8, evaluation.get('passing_status', 'N/A'), 1, 1, 'C', True)
+                pdf.set_text_color(0, 0, 0)  # Reset a negro
+                
+                pdf.ln(8)
+                
+                # Resultados detallados
+                if detailed_results:
+                    pdf.set_font("Arial", 'B', 11)
+                    pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO
+                    pdf.cell(0, 8, "DETALLE DE RESPUESTAS:", 0, 1)
+                    pdf.ln(3)
+                    
+                    # Encabezado de tabla detallada - TEXTO NEGRO
+                    header_fill = self.colors['light']
+                    pdf.set_fill_color(*header_fill)
+                    pdf.set_font("Arial", 'B', 8)
+                    pdf.set_text_color(0, 0, 0)  # TEXTO NEGRO para encabezados
+                    
+                    pdf.cell(15, 8, "Preg.", 1, 0, 'C', True)
+                    pdf.cell(20, 8, "Selección", 1, 0, 'C', True)
+                    pdf.cell(20, 8, "Correcta", 1, 0, 'C', True)
+                    pdf.cell(15, 8, "Estado", 1, 0, 'C', True)
+                    pdf.cell(120, 8, "Explicación", 1, 1, 'C', True)
+                    
+                    pdf.set_font("Arial", '', 7)
+                    
+                    for j, detail in enumerate(detailed_results):
+                        is_correct = detail.get('is_correct', False)
+                        
+                        # Fondo alternado para mejor legibilidad
+                        fill = j % 2 == 0
+                        if fill:
+                            pdf.set_fill_color(245, 245, 245)  # Gris muy claro
+                        else:
+                            pdf.set_fill_color(255, 255, 255)  # Blanco
+                        
+                        # Pregunta - TEXTO NEGRO
+                        pdf.set_text_color(0, 0, 0)
+                        pdf.cell(15, 6, str(detail.get('question_number', '')), 1, 0, 'C', fill)
+                        # Selección - TEXTO NEGRO
+                        pdf.cell(20, 6, detail.get('selected_option', 'N/A'), 1, 0, 'C', fill)
+                        # Correcta - TEXTO NEGRO
+                        pdf.cell(20, 6, detail.get('correct_option', 'N/A'), 1, 0, 'C', fill)
+                        
+                        # Estado - Color según correcto/incorrecto
+                        if is_correct:
+                            pdf.set_text_color(39, 174, 96)
+                            status = "OK"
+                        else:
+                            pdf.set_text_color(231, 76, 60)
+                            status = "X"
+                        pdf.cell(15, 6, status, 1, 0, 'C', fill)
+                        
+                        # Explicación - TEXTO NEGRO
+                        pdf.set_text_color(0, 0, 0)
+                        explanation = detail.get('explanation', 'Sin explicación')
+                        safe_explanation = self.clean_text(explanation)
+                        display_explanation = safe_explanation[:75] + ("..." if len(safe_explanation) > 75 else "")
+                        pdf.cell(120, 6, display_explanation, 1, 1, 'L', fill)
+                    
+                    pdf.ln(10)
+        
+        # Pie de página en cada página
+        self.draw_footer(pdf)
+        
+        return pdf
+
+    def clean_text(self, text):
+        """Limpia el texto de caracteres Unicode problemáticos"""
+        if not text:
+            return ""
+        
+        # Reemplazar caracteres Unicode problemáticos
+        replacements = {
+            '✓': '(OK)',
+            '✗': '(X)',
+            '✅': '(OK)',
+            '❌': '(X)',
+            '→': '->',
+            '←': '<-',
+            '—': '-',
+            '–': '-',
+            '“': '"',
+            '”': '"',
+            '‘': "'",
+            '’': "'",
+            '…': '...'
         }
         
-        stats_df = pd.DataFrame(stats_data)
-        stats_df.to_excel(writer, sheet_name='Estadísticas', index=False)
+        cleaned_text = text
+        for char, replacement in replacements.items():
+            cleaned_text = cleaned_text.replace(char, replacement)
         
-        # Formatear el Excel
-        workbook = writer.book
-        
-        # Formato para el resumen
-        header_format = workbook.add_format({
-            'bold': True,
-            'fg_color': '#4F81BD',
-            'font_color': 'white',
-            'border': 1
-        })
-        
-        # Aplicar formato a los headers
-        for sheet_name in writer.sheets:
-            worksheet = writer.sheets[sheet_name]
-            worksheet.set_column('A:B' if sheet_name == 'Resumen' else 'A:F', 20)
-            for col_num, value in enumerate(stats_df.columns if sheet_name == 'Estadísticas' else summary_df.columns):
-                worksheet.write(0, col_num, value, header_format)
-
-    
-    excel_buffer.seek(0)
-    return excel_buffer.getvalue()
-
-def display_results(result_data):
-    """Muestra los resultados con diseño mejorado"""
-    
-    evaluation_data = extract_gemini_response(result_data)
-    
-    if evaluation_data and not evaluation_data.get('evaluation', {}).get('error'):
-        st.markdown('<div class="fade-in">', unsafe_allow_html=True)
-        
-        evaluation = evaluation_data.get('evaluation', {})
-        student_info = evaluation_data.get('student_info', {})
-        detailed_results = evaluation_data.get('detailed_results', [])
-        
-        # Header de éxito
-        col_success, col_grade = st.columns([3, 1])
-        with col_success:
-            st.success("🎉 ¡Examen evaluado exitosamente!")
-        with col_grade:
-            grade = evaluation.get('grade', 'N/A')
-            grade_color = get_grade_color(grade)
-            st.markdown(f"""
-            <div class="grade-badge" style="background: {grade_color};">
-                <h3 style="margin: 0; font-size: 1.2rem;">Calificación</h3>
-                <h1 style="margin: 0; font-size: 2.5rem; font-weight: bold;">{grade}</h1>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Tarjeta de puntaje mejorada
-        st.markdown(f"""
-        <div class="score-card fade-in">
-            <h1 class="score-percentage">{evaluation.get('score_percentage', 0)}%</h1>
-            <div class="score-details">
-                <div class="score-item">
-                    <h2 class="score-value">{evaluation.get('correct_answers', 0)}</h2>
-                    <p class="score-label">✅ Correctas</p>
-                </div>
-                <div class="score-item">
-                    <h2 class="score-value">{evaluation.get('incorrect_answers', 0)}</h2>
-                    <p class="score-label">❌ Incorrectas</p>
-                </div>
-                <div class="score-item">
-                    <h2 class="score-value">{evaluation.get('unanswered_questions', 0)}</h2>
-                    <p class="score-label">⏭️ Sin respuesta</p>
-                </div>
-                <div class="score-item">
-                    <h2 class="score-value">{student_info.get('total_questions', 0)}</h2>
-                    <p class="score-label">📊 Total</p>
-                </div>
-            </div>
-            <div style="margin-top: 1rem;">
-                <span class="status-badge {'status-approved' if evaluation.get('passing_status') == 'APROBADO' else 'status-failed'}">
-                    {evaluation.get('passing_status', 'N/A')}
-                </span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Información del examen
-        st.markdown("""
-        <div class="section-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            📋 Información del Examen
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown('<div class="exam-info-container fade-in">', unsafe_allow_html=True)
-        info_col1, info_col2, info_col3, info_col4 = st.columns(4)
-        
-        with info_col1:
-            st.markdown(f"""
-            <div class="info-metric">
-                <div class="metric-icon">👤</div>
-                <div class="metric-value">{student_info.get('student_id', 'N/A')}</div>
-                <div class="metric-label">ID Estudiante</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with info_col2:
-            st.markdown(f"""
-            <div class="info-metric">
-                <div class="metric-icon">📚</div>
-                <div class="metric-value">{student_info.get('exam_type', 'N/A')}</div>
-                <div class="metric-label">Tipo de Examen</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with info_col3:
-            st.markdown(f"""
-            <div class="info-metric">
-                <div class="metric-icon">🔢</div>
-                <div class="metric-value">{student_info.get('total_questions', 0)}</div>
-                <div class="metric-label">Total Preguntas</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with info_col4:
-            st.markdown(f"""
-            <div class="info-metric">
-                <div class="metric-icon">🕐</div>
-                <div class="metric-value">Ahora</div>
-                <div class="metric-label">Procesado</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Análisis detallado
-        st.markdown("""
-        <div class="section-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            📊 Análisis Detallado por Pregunta
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if detailed_results:
-            for question in detailed_results:
-                question_num = question.get('question_number')
-                selected = question.get('selected_option', 'Sin respuesta')
-                correct = question.get('correct_option', 'N/A')
-                is_correct = question.get('is_correct', False)
-                explanation = question.get('explanation', '')
-                question_type = translate_question_type(question.get('question_type', 'multiple_choice'))
-                
-                # Determinar clase y icono
-                if selected == 'sin respuesta' or not selected:
-                    css_class = "unanswered-answer"
-                    icon = "⏭️"
-                    status = "SIN RESPUESTA"
-                elif is_correct:
-                    css_class = "correct-answer"
-                    icon = "✅"
-                    status = "CORRECTA"
-                else:
-                    css_class = "incorrect-answer"
-                    icon = "❌"
-                    status = "INCORRECTA"
-                
-                st.markdown(f"""
-                <div class="question-card {css_class} fade-in">
-                    <div class="question-header">
-                        <div class="question-number">Pregunta {question_num}</div>
-                        <div class="question-status">
-                            {icon} {status}
-                        </div>
-                    </div>
-                    <div class="question-details">
-                        <div><strong>Tu respuesta:</strong> {selected}</div>
-                        <div><strong>Respuesta correcta:</strong> {correct}</div>
-                        <div><strong>Tipo:</strong> {question_type}</div>
-                    </div>
-                    <div class="question-explanation">
-                        {explanation}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.warning("No se encontraron resultados detallados del análisis.")
-        
-        # Sección de exportación
-        st.markdown("""
-        <div class="section-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            💾 Exportar Resultados
-        </div>
-        """, unsafe_allow_html=True)
-        
-        display_export_section(evaluation_data)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-            
-    else:
-        error_msg = evaluation_data.get('evaluation', {}).get('error') if evaluation_data else "No se pudieron extraer los resultados"
-        st.error(f"❌ Error en el procesamiento: {error_msg}")
-        
-        with st.expander("🔍 Ver datos técnicos para debug"):
-            st.json(result_data)
-
-def display_export_section(evaluation_data):
-    """Muestra la sección de exportación de resultados"""
-    st.markdown('<div class="export-section">', unsafe_allow_html=True)
-    
-    excel_data = create_excel_export(evaluation_data)
-    
-    if excel_data:
-        # Botón único de descarga Excel
-        st.download_button(
-            label="📊 Descargar Reporte Excel",
-            data=excel_data,
-            file_name=f"resultado_examen_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            help="Descarga un reporte completo en Excel con resumen, preguntas detalladas y estadísticas"
-        )
-        
-        st.info("""
-        **El reporte incluye:**
-        - 📋 Resumen completo del examen
-        - 📊 Preguntas detalladas con explicaciones  
-        - 📈 Estadísticas y métricas de desempeño
-        - 🎨 Formato profesional listo para imprimir
-        """)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-def extract_gemini_response(result_data):
-    """Extrae el JSON de la respuesta de Gemini"""
-    try:
-        # Verificar si ya viene formateado correctamente
-        if 'evaluation' in result_data and result_data['evaluation']:
-            return result_data
-        
-        # Buscar en raw_analysis
-        if 'raw_analysis' in result_data and 'candidates' in result_data['raw_analysis']:
-            candidates = result_data['raw_analysis'].get('candidates', [])
-            if candidates and 'content' in candidates[0]:
-                parts = candidates[0]['content'].get('parts', [])
-                if parts and 'text' in parts[0]:
-                    raw_text = parts[0]['text']
-                    
-                    # Limpiar y parsear
-                    clean_text = raw_text.replace('```json', '').replace('```', '').strip()
-                    evaluation_data = json.loads(clean_text)
-                    return evaluation_data
-        
-        return None
-        
-    except Exception as e:
-        st.error(f"Error al extraer datos: {str(e)}")
-        return None
+        return cleaned_text
 
 def main():
-    # Header principal
-    st.markdown('<h1 class="main-header">🎓 EduScan Pro</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; font-size: 1.2rem; color: #718096; margin-bottom: 2rem;">Sistema Inteligente de Evaluación Automática</p>', unsafe_allow_html=True)
+    st.title("🎓 EduScan Pro - Evaluación por Lotes")
     
-    scanner = ExamScanner()
+    scanner = BatchExamScanner()
+    pdf_generator = PDFReportGenerator()
     
     # Inicializar estado de sesión
-    if 'processed' not in st.session_state:
-        st.session_state.processed = False
-    if 'result_data' not in st.session_state:
-        st.session_state.result_data = None
     if 'processing' not in st.session_state:
         st.session_state.processing = False
+    if 'last_results' not in st.session_state:
+        st.session_state.last_results = None
+    if 'pdf_generated' not in st.session_state:
+        st.session_state.pdf_generated = False
     
-    # Sidebar mejorado
+    # Sidebar
     with st.sidebar:
-        st.markdown("""
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <h2 style="color: var(--text-color); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                ⚙️ Configuración
-            </h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        student_id = st.text_input(
-            "👤 ID del Estudiante", 
-            placeholder="Ej: EST12345",
-            help="Ingresa el identificador único del estudiante"
-        )
-        
-        exam_type = st.selectbox(
-            "📚 Tipo de Examen",
-            ["Matemáticas", "Ciencias", "Historia", "Inglés", "Programación", "Medicina", "Otro"],
-            help="Selecciona la categoría del examen"
-        )
+        st.header("Configuración del Lote")
+        batch_name = st.text_input("Nombre del Lote", placeholder="Grupo A - Matemáticas")
+        exam_type = st.selectbox("Tipo de Examen", ["Matemáticas", "Ciencias", "Historia", "Inglés"])
         
         st.markdown("---")
-        st.markdown("""
-        <div style="background: var(--card-bg); padding: 1rem; border-radius: 10px; margin: 1rem 0; border: 1px solid var(--border-color);">
-            <h4 style="margin: 0 0 0.5rem 0; color: var(--text-color);">💡 Consejos para mejores resultados:</h4>
-            <ul style="margin: 0; padding-left: 1.2rem; color: #718096; font-size: 0.9rem;">
-                <li>Imagen bien iluminada</li>
-                <li>Marcas con X claramente visibles</li>
-                <li>Todo el examen en el marco</li>
-                <li>Evitar sombras y reflejos</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("**💡 Instrucciones:**")
+        st.markdown("1. Sube todos los exámenes a la vez")
+        st.markdown("2. El sistema procesará todo el lote")
+        st.markdown("3. Los resultados llegarán juntos")
     
     # Área principal
-    col1, col2 = st.columns([2, 1])
+    st.subheader("📤 Subida de Exámenes")
     
-    with col1:
-        uploaded_file = st.file_uploader(
-            "📤 Sube la imagen del examen",
-            type=['png', 'jpg', 'jpeg'],
-            help="Selecciona una imagen clara del examen completado"
-        )
+    uploaded_files = st.file_uploader(
+        "Selecciona todos los exámenes del lote",
+        type=['png', 'jpg', 'jpeg'],
+        accept_multiple_files=True,
+        help="Puedes seleccionar múltiples archivos a la vez"
+    )
     
-    with col2:
-        st.markdown("""
-        <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color);">
-            <h3 style="margin: 0 0 1rem 0; color: var(--text-color);">📸 Guía de Captura</h3>
-            <div style="color: #718096;">
-                <p>✅ <strong>Imagen nítida</strong></p>
-                <p>✅ <strong>X bien marcadas</strong></p>
-                <p>✅ <strong>Enfoque correcto</strong></p>
-                <p>✅ <strong>Buena iluminación</strong></p>
-                <p>✅ <strong>Sin reflejos</strong></p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Mostrar archivos seleccionados
+    if uploaded_files:
+        st.write(f"📁 **Archivos seleccionados:** {len(uploaded_files)} exámenes")
+        for i, file in enumerate(uploaded_files):
+            st.write(f"{i+1}. {file.name}")
     
-    # Mostrar vista previa
-    if uploaded_file and not st.session_state.processing:
-        st.markdown("""
-        <div class="section-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-            👀 Vista Previa del Examen
-        </div>
-        """, unsafe_allow_html=True)
-        image = Image.open(uploaded_file)
-        st.image(image, use_container_width=True, caption="Imagen cargada para evaluación")
-    
-    # Botón de procesamiento
-    if uploaded_file and student_id and not st.session_state.processing:
-        if st.button("🚀 Iniciar Evaluación con IA", type="primary", use_container_width=True):
-            st.session_state.processing = True
-            st.session_state.processed = False
+    # Procesar lote completo
+    if uploaded_files and batch_name and not st.session_state.processing and not st.session_state.pdf_generated:
+        if st.button("🚀 Procesar Lote Completo", type="primary", use_container_width=True):
+            if len(uploaded_files) > 10:
+                st.warning("⚠️ Tienes muchos exámenes. El procesamiento puede tomar varios minutos.")
             
-            with st.spinner("🔄 Procesando examen con inteligencia artificial... Esto puede tomar 30-60 segundos"):
-                result = scanner.process_image(uploaded_file, student_id, exam_type)
+            st.session_state.processing = True
+            
+            # Preparar datos
+            files_data = []
+            for uploaded_file in uploaded_files:
+                student_id = uploaded_file.name.split('.')[0]
+                files_data.append({
+                    'file': uploaded_file,
+                    'student_id': student_id,
+                    'filename': uploaded_file.name
+                })
+            
+            # Procesar lote
+            with st.spinner(f"🔄 Procesando {len(uploaded_files)} exámenes. Esto puede tomar varios minutos..."):
+                result = scanner.process_batch(files_data, batch_name, exam_type)
+                st.session_state.last_results = result
+                st.session_state.processing = False
+            
+            # Mostrar resultados
+            if result['success']:
+                st.success(f"✅ Lote procesado exitosamente!")
                 
-                if result:
-                    st.session_state.result_data = result
-                    st.session_state.processed = True
-                    st.session_state.processing = False
-                    st.rerun()
-                else:
-                    st.session_state.processing = False
-                    st.error("❌ Falló el procesamiento del examen")
+                # Mostrar resumen visual
+                results_data = result['data']
+                batch_processing = results_data.get('batch_processing', {})
+                results = results_data.get('results', [])
+                successful_results = [r for r in results if r.get('success')]
+                
+                if successful_results:
+                    # Calcular estadísticas para mostrar en Streamlit
+                    scores = []
+                    approved = 0
+                    student_scores = []
+                    
+                    for result_item in successful_results:
+                        data = result_item.get('data', {})
+                        evaluation = data.get('evaluation', {})
+                        score = evaluation.get('score_percentage', 0)
+                        scores.append(score)
+                        
+                        student_name = data.get('student_info', {}).get('student_name', result_item.get('student_id', 'Desconocido'))
+                        student_scores.append({
+                            'name': student_name,
+                            'score': score
+                        })
+                        
+                        if evaluation.get('passing_status') == 'APROBADO':
+                            approved += 1
+                    
+                    avg_score = sum(scores) / len(scores) if scores else 0
+                    max_score = max(scores) if scores else 0
+                    min_score = min(scores) if scores else 0
+                    
+                    # Encontrar estudiantes con máxima nota
+                    max_students = [s for s in student_scores if s['score'] == max_score]
+                    
+                    # Mostrar métricas
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("📊 Promedio General", f"{avg_score:.1f}%")
+                    with col2:
+                        st.metric("✅ Aprobados", approved)
+                    with col3:
+                        st.metric("❌ Desaprobados", len(successful_results) - approved)
+                    with col4:
+                        st.metric("🎯 Nota Máxima", f"{max_score}%")
+                    
+                    # Mostrar información del estudiante con máxima nota
+                    if max_students:
+                        st.info(f"🏆 **Mejor desempeño:** {max_students[0]['name']} con {max_score}%")
+                    
+                    # Generar PDF automáticamente
+                    st.subheader("📄 Reporte PDF Generado")
+
+                    try:
+                        pdf = pdf_generator.generate_pdf_report(results_data, batch_name, exam_type)
+                        
+                        # Guardar PDF en buffer
+                        pdf_buffer = io.BytesIO()
+                        pdf_output = pdf.output(dest='S')
+
+                        # ✅ Corregir compatibilidad según el tipo devuelto
+                        if isinstance(pdf_output, str):
+                            pdf_output = pdf_output.encode('latin-1')
+                        elif isinstance(pdf_output, bytearray):
+                            pdf_output = bytes(pdf_output)
+
+                        pdf_buffer.write(pdf_output)
+                        pdf_buffer.seek(0)
+                        
+                        # Botón de descarga
+                        st.download_button(
+                            label="⬇️ Descargar Reporte PDF",
+                            data=pdf_buffer,
+                            file_name=f"reporte_eduscan_{batch_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                        
+                        st.session_state.pdf_generated = True
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error al generar PDF: {str(e)}")
+
+                    
+                    # Botón para procesar nuevo lote
+                    if st.button("🔄 Procesar Nuevo Lote", use_container_width=True):
+                        st.session_state.last_results = None
+                        st.session_state.processing = False
+                        st.session_state.pdf_generated = False
+                        st.rerun()
+            else:
+                st.error(f"❌ Error al procesar lote: {result['error']}")
     
-    # Mostrar resultados si ya se procesó
-    if st.session_state.processed and st.session_state.result_data:
-        display_results(st.session_state.result_data)
-        
-        st.markdown("---")
-        if st.button("🔄 Evaluar Nuevo Examen", use_container_width=True):
-            # Resetear estado
-            for key in ['processed', 'result_data', 'processing']:
-                if key in st.session_state:
-                    del st.session_state[key]
+    # Si ya se generó PDF, mostrar opción para nuevo lote
+    elif st.session_state.pdf_generated:
+        st.info("📄 El reporte PDF ha sido generado. Puedes descargarlo arriba.")
+        if st.button("🔄 Procesar Nuevo Lote", use_container_width=True):
+            st.session_state.last_results = None
+            st.session_state.processing = False
+            st.session_state.pdf_generated = False
             st.rerun()
 
 if __name__ == "__main__":
